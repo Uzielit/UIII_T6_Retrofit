@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -18,6 +19,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.veterinaria.R
@@ -33,6 +37,30 @@ fun PetScreen(viewModel: PetsViewModel, navController: NavController) {
 
 
     val pets by viewModel.petsUiState.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val error by viewModel.error.collectAsState()
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        // Creamos un observador
+        val observer = LifecycleEventObserver { _, event ->
+            // Si el evento es ON_RESUME (es decir, la pantalla vuelve a
+            // estar activa después de estar pausada, como cuando regresas
+            // de AddScreen)...
+            if (event == Lifecycle.Event.ON_RESUME) {
+                // ...¡le pedimos al ViewModel que recargue las mascotas!
+                viewModel.loadPets()
+            }
+        }
+
+        // Añadimos el observador al ciclo de vida
+        lifecycleOwner.lifecycle.addObserver(observer)
+
+        // Cuando la pantalla se destruya (onDispose), quitamos el observador
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -40,6 +68,7 @@ fun PetScreen(viewModel: PetsViewModel, navController: NavController) {
                 title = { Text("Mascotas Atendidas") }
             )
         },
+
         floatingActionButton = {
             FloatingActionButton(
                 onClick = {

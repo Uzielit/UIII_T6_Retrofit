@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.veterinaria.data.model.Mascota
-import com.veterinaria.data.repository.RepositoryMascota
+
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -12,6 +12,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import android.net.Uri
+import com.veterinaria.data.repository.MascotaRepository
 
 import java.io.File
 import java.io.FileOutputStream
@@ -19,7 +20,7 @@ import java.util.UUID
 
 
 class EditPetsViewModel(
-    private val repository: RepositoryMascota,
+    private val repository: MascotaRepository,
     private val petId: Int
 ) : ViewModel() {
 
@@ -31,7 +32,7 @@ class EditPetsViewModel(
     private val _especie = MutableStateFlow("")
     val especie = _especie.asStateFlow()
 
-    private val _imageUrl = MutableStateFlow<String?>("") // Ruta local guardada
+    private val _imageUrl = MutableStateFlow<String?>(null)
     val imageUrl = _imageUrl.asStateFlow()
 
     private val _fechaNacimientoStr = MutableStateFlow("")
@@ -43,25 +44,41 @@ class EditPetsViewModel(
     private val _nuevaImagenUri = MutableStateFlow<Uri?>(null)
     val nuevaImagenUri = _nuevaImagenUri.asStateFlow()
 
+    // --- Estados de UI ---
+    private val _isLoading = MutableStateFlow(true)
+    val isLoading = _isLoading.asStateFlow()
+
+    private val _error = MutableStateFlow<String?>(null)
+    val error = _error.asStateFlow()
+
     private var mascotaOriginal: Mascota? = null
 
     init {
         loadPetData()
     }
 
+
     private fun loadPetData() {
         viewModelScope.launch {
-            val pet = repository.getPetById(petId)
-            if (pet != null) {
-                mascotaOriginal = pet
-                _nombre.value = pet.nombre
-                _especie.value = pet.especie
-                _imageUrl.value = pet.imageUrl
+            _isLoading.value = true
+            try {
 
-                val date = Date(pet.fechaNacimiento)
-                _fechaNacimientoStr.value = formatter.format(date)
-                _vacunado.value = pet.vacunado
+                val mascota = repository.getPetById(petId)
+                if (mascota == null) {
+                    _error.value = "No se pudo encontrar la mascota."
+                } else {
+                    mascotaOriginal = mascota
+                    _nombre.value = mascota.nombre
+                    _especie.value = mascota.especie
+                    _imageUrl.value = mascota.imageUrl // URL Remota
+                    _fechaNacimientoStr.value = formatter.format(Date(mascota.fechaNacimiento))
+                    _vacunado.value = mascota.vacunado
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _error.value = "Error al cargar: ${e.message}"
             }
+            _isLoading.value = false
         }
     }
 
@@ -71,58 +88,67 @@ class EditPetsViewModel(
     fun onVacunadoChange(isChecked: Boolean) { _vacunado.value = isChecked }
 
 
-    fun onNewImageSelected(uri: Uri) {
+    fun onNewImageSelected(uri: Uri?) {
         _nuevaImagenUri.value = uri
     }
 
-    suspend fun updatePet(context: Context): Boolean {
-        return try {
-            var rutaImagenFinal = mascotaOriginal?.imageUrl
-            val uriNueva = _nuevaImagenUri.value
+    fun updatePet(onUpdateComplete: (success: Boolean) -> Unit) {
+        val mascotaBase = mascotaOriginal ?: return
 
-            if (uriNueva != null) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _error.value = null
+            try {
+                val fechaLong = try {
+                    formatter.parse(_fechaNacimientoStr.value)?.time ?: System.currentTimeMillis()
+                } catch (e: Exception) { System.currentTimeMillis() }
 
-                rutaImagenFinal = saveImageToInternalStorage(context, uriNueva)
+                val mascotaActualizada = Mascota(
+                    id = mascotaBase.id,
+                    nombre = _nombre.value,
+                    especie = _especie.value,
+                    imageUrl = mascotaBase.imageUrl,
+                    fechaNacimiento = fechaLong,
+                    vacunado = _vacunado.value
+                )
 
-                mascotaOriginal?.imageUrl?.let { File(it).delete() }
+                repository.updatePet(mascotaActualizada, _nuevaImagenUri.value)
+
+                _isLoading.value = false
+                onUpdateComplete(true)
+
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _error.value = "Error al actualizar: ${e.message}"
+                _isLoading.value = false
+                onUpdateComplete(false)
             }
-
-            val fechaLong = try {
-                formatter.parse(_fechaNacimientoStr.value)?.time ?: System.currentTimeMillis()
-            } catch (e: Exception) { System.currentTimeMillis() }
-
-            val mascotaActualizada = Mascota(
-                id = mascotaOriginal!!.id,
-                nombre = _nombre.value,
-                especie = _especie.value,
-                imageUrl = rutaImagenFinal,
-                fechaNacimiento = fechaLong,
-                vacunado = _vacunado.value
-            )
-            repository.updatePet(mascotaActualizada)
-            true
-        } catch (e: Exception) {
-            e.printStackTrace()
-            false
         }
     }
 
-    suspend fun deletePet(): Boolean {
-        return try {
-            mascotaOriginal?.let { pet ->
+    fun deletePet(onDeleteComplete: (success: Boolean) -> Unit) {
+        val mascotaParaBorrar = mascotaOriginal ?: return
 
-                pet.imageUrl?.let { File(it).delete() }
+        viewModelScope.launch {
+            _isLoading.value = true
+            _error.value = null
+            try {
+                repository.deletePet(mascotaParaBorrar)
 
-                repository.deletePet(pet)
+                _isLoading.value = false
+                onDeleteComplete(true)
+
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _error.value = "Error al eliminar: ${e.message}"
+                _isLoading.value = false
+                onDeleteComplete(false)
             }
-            true
-        } catch (e: Exception) {
-            e.printStackTrace()
-            false
         }
     }
 
 
+ /*
     private fun saveImageToInternalStorage(context: Context, uri: Uri): String {
         val inputStream = context.contentResolver.openInputStream(uri)
         val imagesDir = File(context.filesDir, "images")
@@ -136,4 +162,5 @@ class EditPetsViewModel(
         }
         return file.absolutePath
     }
+  */
 }

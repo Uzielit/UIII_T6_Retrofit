@@ -58,7 +58,9 @@ import kotlinx.coroutines.launch
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.ui.platform.LocalContext
+
 
 
 
@@ -75,15 +77,16 @@ fun EditPetsScreen(viewModel: EditPetsViewModel, navController: NavController) {
     val imageUrlGuardada by viewModel.imageUrl.collectAsState()
     val nuevaImagenUri by viewModel.nuevaImagenUri.collectAsState()
 
+    val isLoading by viewModel.isLoading.collectAsState()
+    val error by viewModel.error.collectAsState()
+
 
     val context = LocalContext.current
 
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
         onResult = { uri: Uri? ->
-            uri?.let {
-                viewModel.onNewImageSelected(it)
-            }
+            viewModel.onNewImageSelected(uri)
         }
     )
     //7flask
@@ -191,8 +194,7 @@ fun EditPetsScreen(viewModel: EditPetsViewModel, navController: NavController) {
 
             Button(
                 onClick = {
-                    scope.launch {
-                        val success = viewModel.updatePet(context)
+                    viewModel.updatePet { success ->
                         if (success) {
                             navController.popBackStack()
                         }
@@ -222,7 +224,7 @@ fun EditPetsScreen(viewModel: EditPetsViewModel, navController: NavController) {
             }
             Spacer(modifier = Modifier.height(20.dp))
         }
-
+       //aqui pendinte para carga
 
     }
     if (showDeleteDialog.value) {
@@ -233,12 +235,12 @@ fun EditPetsScreen(viewModel: EditPetsViewModel, navController: NavController) {
             confirmButton = {
                 TextButton(
                     onClick = {
-                        scope.launch {
-                            viewModel.deletePet()
-
+                        viewModel.deletePet { success ->
                             showDeleteDialog.value = false
+                            if (success) {
+                                navController.popBackStack()
+                            }
 
-                            navController.popBackStack()
                         }
                     }
                 ) {

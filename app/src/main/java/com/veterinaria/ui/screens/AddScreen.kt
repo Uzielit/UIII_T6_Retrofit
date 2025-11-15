@@ -42,7 +42,6 @@ import androidx.navigation.compose.rememberNavController
 import androidx.room.Room
 import coil.compose.AsyncImage
 import com.veterinaria.data.model.MascotaDatabase
-import com.veterinaria.data.repository.RepositoryMascota
 import com.veterinaria.viewmodel.AddViewModel
 import com.veterinaria.ui.components.buttons.PrimaryButton
 import com.veterinaria.ui.components.buttons.CancelButton
@@ -60,6 +59,9 @@ fun AddScreen(viewModel: AddViewModel, navController: NavController) {
     val selectedImageUri by viewModel.imageUrl.collectAsState()
     val fechaNacimiento by viewModel.fechaNacimientoStr.collectAsState()
     val vacunado by viewModel.vacunado.collectAsState()
+
+    val isSaving by viewModel.isSaving.collectAsState()
+    val saveError by viewModel.saveError.collectAsState()
 
     val scope = rememberCoroutineScope()
 
@@ -172,18 +174,29 @@ fun AddScreen(viewModel: AddViewModel, navController: NavController) {
                 }
 
                 Box(modifier = Modifier.weight(1f)) {
-                    PrimaryButton(
-                        text = "Guardar",
+                    Button(
                         onClick = {
-                            scope.launch {
-                                val success = viewModel.savePet(context)
-
+                            viewModel.savePet { success ->
                                 if (success) {
+                                    navController.previousBackStackEntry
+                                        ?.savedStateHandle
+                                        ?.set("should_refresh", true)
                                     navController.popBackStack()
                                 }
                             }
+                        },
+                        enabled = !isSaving,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Guardar")
+                    }
+                }
+                saveError?.let { error ->
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = error,
+                        color = MaterialTheme.colorScheme.error,
 
-                        }
                     )
                 }
             }
@@ -193,20 +206,3 @@ fun AddScreen(viewModel: AddViewModel, navController: NavController) {
 
 
 
-@Preview (showBackground = true)
-@Composable
-fun AddScreenPreview() {
-    val context = LocalContext.current
-    val dataBase = remember {
-        Room.databaseBuilder(
-            context.applicationContext,
-            MascotaDatabase::class.java,
-            "veterinaria_database"
-        ).build()
-
-    }
-    val navController = rememberNavController()
-    val mascotaRepository = remember { RepositoryMascota(dataBase.mascotaDao()) }
-    val addViewModel = remember { AddViewModel(mascotaRepository) }
-    AddScreen(viewModel = addViewModel, navController = navController)
-}

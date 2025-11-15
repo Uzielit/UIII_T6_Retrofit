@@ -12,7 +12,8 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.room.Room
 import com.veterinaria.data.model.MascotaDatabase
-import com.veterinaria.data.repository.RepositoryMascota
+import com.veterinaria.data.repository.MascotaRepository
+import com.veterinaria.data.repository.RetrofitInstance
 import com.veterinaria.viewmodel.LoginViewModel
 import com.veterinaria.ui.screens.*
 import com.veterinaria.viewmodel.AddViewModel
@@ -38,9 +39,8 @@ fun Navigation (){
         ).build()
 
     }
-    val mascotaRepository = remember { RepositoryMascota(dataBase.mascotaDao()) }
-    val factory = remember(mascotaRepository) {
-        PetViewModelFactory(mascotaRepository,context)
+    val mascotaRepository = remember {
+        MascotaRepository(RetrofitInstance.api, context)
     }
 
 
@@ -66,12 +66,8 @@ fun Navigation (){
         }
  */
 
-
-
     val forgotViewModel: ForgotPasswordViewModel = viewModel()
-    val loginViewModel: LoginViewModel = viewModel()
     val infoPetsViewModel: InfoPetsViewModel = viewModel()
-
     val registerViewModel: RegisterViewModel = viewModel()
 
 
@@ -79,6 +75,7 @@ fun Navigation (){
     NavHost(navController = navController, startDestination = "Login") {
 
         composable("Login") {
+            val loginViewModel: LoginViewModel = viewModel()
             LoginScreen(
                 viewModel = loginViewModel,
                 navController = navController

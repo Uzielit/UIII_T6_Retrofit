@@ -4,11 +4,12 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.veterinaria.data.model.Mascota
-import com.veterinaria.data.repository.RepositoryMascota
+
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import android.net.Uri
+import com.veterinaria.data.repository.MascotaRepository
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -16,7 +17,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
 
-class AddViewModel(private val repository: RepositoryMascota): ViewModel() {
+class AddViewModel(private val repository: MascotaRepository): ViewModel() {
 
 
     private val _nombre = MutableStateFlow("")
@@ -35,6 +36,12 @@ class AddViewModel(private val repository: RepositoryMascota): ViewModel() {
 
     private val _vacunado = MutableStateFlow(false)
     val vacunado = _vacunado.asStateFlow()
+    private val _isSaving = MutableStateFlow(false)
+    val isSaving = _isSaving.asStateFlow()
+
+    // Para mostrar un mensaje de error si algo falla
+    private val _saveError = MutableStateFlow<String?>(null)
+    val saveError = _saveError.asStateFlow()
 
 
     fun onNombreChange(text: String) { _nombre.value = text }
@@ -43,46 +50,68 @@ class AddViewModel(private val repository: RepositoryMascota): ViewModel() {
     fun onFechaNacimientoChange(text: String) { _fechaNacimientoStr.value = text }
     fun onVacunadoChange(isChecked: Boolean) { _vacunado.value = isChecked }
 
-    suspend fun savePet(context: Context): Boolean {
+    fun savePet(onSaveComplete: (success: Boolean) -> Unit) {
         val nombre = _nombre.value
         val especie = _especie.value
         val fechaStr = _fechaNacimientoStr.value
         val vacunado = _vacunado.value
         val imagenUri = _imageUrl.value
 
+
         if (nombre.isBlank() || especie.isBlank() || imagenUri == null) {
-            return false
+            _saveError.value = "Nombre, especie e imagen son obligatorios."
+            onSaveComplete(false)
+            return
         }
 
-        return try {
-            val rutaImagenPermanente = saveImageToInternalStorage(context, imagenUri)
+        viewModelScope.launch {
 
-            val formatter = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
-            val fechaLong = try {
-                formatter.parse(fechaStr)?.time ?: System.currentTimeMillis()
-            } catch (e: Exception) { System.currentTimeMillis() }
+            _isSaving.value = true
+            _saveError.value = null
 
-            val nuevaMascota = Mascota(
-                nombre = nombre,
-                especie = especie,
-                imageUrl = rutaImagenPermanente,
-                fechaNacimiento = fechaLong,
-                vacunado = vacunado
-            )
-            repository.insertPet(nuevaMascota)
-            _nombre.value = ""
-            _especie.value = ""
-            _imageUrl.value = null
-            _fechaNacimientoStr.value = ""
-            _vacunado.value = false
+            try {
 
-            true
-        } catch (e: Exception) {
-            e.printStackTrace()
-            false
+                val formatter = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+                val fechaLong = try {
+                    formatter.parse(fechaStr)?.time ?: System.currentTimeMillis()
+                } catch (e: Exception) { System.currentTimeMillis() }
+
+                //  Crear el objeto Mascota
+                val nuevaMascota = Mascota(
+                    id = 0,
+                    nombre = nombre,
+                    especie = especie,
+                    imageUrl = null,
+                    fechaNacimiento = fechaLong,
+                    vacunado = vacunado
+                )
+
+
+                // Le pasamos el objeto de datos Y la Uri de la imagen por separado.
+                repository.insertPet(nuevaMascota, imagenUri)
+
+                _isSaving.value = false
+                resetForm()
+                onSaveComplete(true)
+
+            } catch (e: Exception) {
+                // 5. Error
+                e.printStackTrace()
+                _saveError.value = "Error al guardar: ${e.message}"
+                _isSaving.value = false
+                onSaveComplete(false)
+            }
         }
     }
 
+    private fun resetForm() {
+        _nombre.value = ""
+        _especie.value = ""
+        _imageUrl.value = null
+        _fechaNacimientoStr.value = ""
+        _vacunado.value = false
+    }
+    /*
     private fun saveImageToInternalStorage(context: Context, uri: Uri): String {
         val inputStream = context.contentResolver.openInputStream(uri)
 
@@ -101,5 +130,7 @@ class AddViewModel(private val repository: RepositoryMascota): ViewModel() {
         }
         return file.absolutePath
     }
+     */
+
 
 }

@@ -13,6 +13,8 @@ foundation = "1.9.4"
 room = "2.6.1"
 material3 = "1.4.0"
 uiUnit = "1.9.4"
+retrofit="2.11.0"
+gson="2.11.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -37,6 +39,8 @@ room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
 room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 androidx-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
 androidx-compose-ui-unit = { group = "androidx.compose.ui", name = "ui-unit", version.ref = "uiUnit" }
+retrofit={group="com.squareup.retrofit2",name="retrofit",version.ref="retrofit"}
+gson={group="com.squareup.retrofit2",name="converter-gson",version.ref="retrofit"}
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

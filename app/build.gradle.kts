@@ -5,7 +5,9 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     id("kotlin-kapt")
+
     // id("com.google.gms.google-services")
+
 }
 
 android {
@@ -54,6 +56,8 @@ implementation (platform("com.google.firebase:firebase-bom:33.0.0"))
 
     implementation(libs.androidx.navigation)
 
+    implementation(libs.retrofit)
+    implementation(libs.gson)
 
 
     implementation(libs.androidx.core.ktx)
