@@ -19,7 +19,7 @@ class LoginViewModel : ViewModel (){
 
             }
         } else {
-            loginError.value = "Algo esta mal en el inicio de sesión"
+            loginError.value = "Algo anda mal"
         }
     }
 
